@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Feature 2 - System Diagnostics & Metrics{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="hero-badge">Isolated Microservice Feature</div>
+    <h1 class="hero-title">Feature 2: System Diagnostics & Health</h1>
+    <p class="hero-subtitle">
+        Second modular feature providing real-time telemetry, process stats, and JSON diagnostic feeds. Completely decoupled so it can effortlessly spin off into an independent microserver.
+    </p>
+</div>
+
+<div class="calculator-panel" style="max-width: 900px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+            <div class="card-tag">Telemetry Module</div>
+            <h3 style="font-size: 1.3rem;">🖥️ Live Host & Runtime Metrics</h3>
+        </div>
+        <button id="refresh-btn" class="btn btn-secondary" onclick="fetchLiveTelemetry()">⚡ Refresh Live Telemetry</button>
+    </div>
+
+    <table class="metrics-table">
+        <thead>
+            <tr>
+                <th>Telemetry Metric</th>
+                <th>Current Value</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="metrics-body">
+            <tr>
+                <td><strong>Process ID (PID)</strong></td>
+                <td id="val-pid">{{ process.pid }}</td>
+                <td><span class="badge active-badge">Running</span></td>
+            </tr>
+            <tr>
+                <td><strong>Active Threads</strong></td>
+                <td id="val-threads">{{ process.active_threads }}</td>
+                <td><span class="badge active-badge">Normal</span></td>
+            </tr>
+            <tr>
+                <td><strong>Server Uptime</strong></td>
+                <td id="val-uptime">{{ process.uptime_formatted }}</td>
+                <td><span class="badge active-badge">Healthy</span></td>
+            </tr>
+            <tr>
+                <td><strong>Host Architecture</strong></td>
+                <td id="val-arch">{{ host.architecture }} ({{ host.os_system }} {{ host.os_release }})</td>
+                <td><span class="badge active-badge">Verified</span></td>
+            </tr>
+            <tr>
+                <td><strong>Available CPU Cores</strong></td>
+                <td id="val-cpu">{{ host.cpu_count }} Core(s)</td>
+                <td><span class="badge active-badge">Active</span></td>
+            </tr>
+            <tr>
+                <td><strong>Python Runtime</strong></td>
+                <td>{{ process.python_implementation }} {{ process.python_version }}</td>
+                <td><span class="badge active-badge">Compatible</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div style="margin-top: 1.8rem; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.85rem; color: var(--text-muted);">
+            Last Polled: <span id="last-poll-time">{{ timestamp }}</span>
+        </span>
+        <a href="/feature2/api/diagnostics" target="_blank" class="btn" style="background: rgba(6, 182, 212, 0.15); color: var(--secondary); border: 1px solid rgba(6, 182, 212, 0.3);">
+            View Raw JSON API &rarr;
+        </a>
+    </div>
+</div>
+
+<div style="max-width: 900px; margin: 2rem auto; text-align: center;">
+    <a href="/" class="btn" style="background: rgba(255,255,255,0.08); color: var(--text-muted);">&larr; Return to Home Gateway</a>
+</div>
+
+<script>
+async function fetchLiveTelemetry() {
+    const btn = document.getElementById('refresh-btn');
+    btn.textContent = 'Updating...';
+    try {
+        const response = await fetch('/feature2/api/diagnostics');
+        const data = await response.json();
+        
+        document.getElementById('val-pid').textContent = data.process.pid;
+        document.getElementById('val-threads').textContent = data.process.active_threads;
+        document.getElementById('val-uptime').textContent = data.process.uptime_formatted;
+        document.getElementById('last-poll-time').textContent = data.timestamp;
+        btn.textContent = '⚡ Updated Successfully!';
+        setTimeout(() => { btn.textContent = '⚡ Refresh Live Telemetry'; }, 1500);
+    } catch (err) {
+        btn.textContent = 'Error refreshing';
+        console.error(err);
+    }
+}
+</script>
+{% endblock %}
