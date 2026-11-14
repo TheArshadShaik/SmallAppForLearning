@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Option 1: Unified server with Home + Feature 1 + Feature 2
+  smallapp-master:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smallapp-server:latest
+    container_name: smallapp-master
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - PORT=5000
+      - ENABLE_FEATURE_1=true
+      - ENABLE_FEATURE_2=true
+    restart: unless-stopped
+
+  # Option 2: Standalone Microservice for Feature 1 (New Server Simulation)
+  feature1-microservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smallapp-server:latest
+    container_name: feature1-server
+    ports:
+      - "5001:5001"
+    command: ["python", "-m", "app.features.feature1.standalone", "--host", "0.0.0.0", "--port", "5001"]
+    environment:
+      - PORT=5001
+    restart: unless-stopped
+
+  # Option 3: Standalone Microservice for Feature 2 (New Server Simulation)
+  feature2-microservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smallapp-server:latest
+    container_name: feature2-server
+    ports:
+      - "5002:5002"
+    command: ["python", "-m", "app.features.feature2.standalone", "--host", "0.0.0.0", "--port", "5002"]
+    environment:
+      - PORT=5002
+    restart: unless-stopped

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Home - SmallApp Main Server{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="hero-badge">Production-Ready Modular Architecture</div>
+    <h1 class="hero-title">Python Multi-Feature Micro-Server</h1>
+    <p class="hero-subtitle">
+        Engineered with isolated blueprints for high modularity. The Home page serves as the master gateway, while <strong>Feature 1</strong> and <strong>Feature 2</strong> are completely decoupled and can either run unified or be deployed to individual new servers.
+    </p>
+</div>
+
+<div class="cards-grid">
+    <div class="card feature-card">
+        <div class="card-icon">🏠</div>
+        <div class="card-tag main-tag">Main Feature</div>
+        <h3 class="card-title">Home Gateway & Orchestrator</h3>
+        <p class="card-desc">
+            Central dashboard exposing host metadata, configuration status, unified telemetry, and global routing.
+        </p>
+        <ul class="feature-checklist">
+            <li>✓ Environment: <span class="highlight">{{ info.environment }}</span></li>
+            <li>✓ Python Version: <span class="highlight">{{ info.python_version }}</span></li>
+            <li>✓ Hostname: <span class="highlight">{{ info.hostname }}</span></li>
+            <li>✓ System Time: <span class="highlight">{{ info.timestamp }}</span></li>
+        </ul>
+        <div class="card-action">
+            <span class="badge active-badge">Running Master</span>
+        </div>
+    </div>
+
+    <div class="card feature-card">
+        <div class="card-icon">📊</div>
+        <div class="card-tag">Modular Feature 1</div>
+        <h3 class="card-title">Analytics & Calculator</h3>
+        <p class="card-desc">
+            Single-page dynamic analytics module. Implemented in its own isolated blueprint with zero hard dependencies on the root app.
+        </p>
+        <ul class="feature-checklist">
+            <li>✓ Route: <code>/feature1</code></li>
+            <li>✓ Standalone server runner included</li>
+            <li>✓ Can easily detach to a new server</li>
+            <li>✓ Dedicated API and UI endpoints</li>
+        </ul>
+        <div class="card-action">
+            <a href="/feature1" class="btn btn-primary">Open Feature 1 &rarr;</a>
+        </div>
+    </div>
+
+    <div class="card feature-card">
+        <div class="card-icon">🛠️</div>
+        <div class="card-tag">Modular Feature 2</div>
+        <h3 class="card-title">Diagnostics & Metrics Service</h3>
+        <p class="card-desc">
+            Second standalone feature delivering system telemetry, memory stats, JSON diagnostic reports, and logging inspections.
+        </p>
+        <ul class="feature-checklist">
+            <li>✓ Route: <code>/feature2</code></li>
+            <li>✓ Standalone server runner included</li>
+            <li>✓ Microservice ready for port-swapping</li>
+            <li>✓ JSON diagnostic stream endpoint</li>
+        </ul>
+        <div class="card-action">
+            <a href="/feature2" class="btn btn-secondary">Open Feature 2 &rarr;</a>
+        </div>
+    </div>
+</div>
+
+<div class="architecture-banner">
+    <h2>🚀 Server Architecture & Decoupling Strategy</h2>
+    <div class="arch-steps">
+        <div class="arch-step">
+            <div class="step-num">1</div>
+            <h4>Unified Monolith</h4>
+            <p>Run all features under one Gunicorn / Flask server instance on port 5000.</p>
+        </div>
+        <div class="arch-step">
+            <div class="step-num">2</div>
+            <h4>Standalone Microservers</h4>
+            <p>Each feature has a <code>standalone.py</code> entry point to run on an independent EC2 instance or port.</p>
+        </div>
+        <div class="arch-step">
+            <div class="step-num">3</div>
+            <h4>Feature Toggling</h4>
+            <p>Selectively enable/disable features per server using <code>ENABLE_FEATURE_1=false</code> environment variables.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
