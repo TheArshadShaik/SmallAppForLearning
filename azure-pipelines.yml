@@ -1,32 +1,38 @@
 # ==============================================================
 # Azure DevOps CI/CD Pipeline for SmallApp
+# Runner: Self-Hosted Agent (Default Pool)
 # Stages:
 #   1. Test & Code Quality (pytest, JUnit XML, Cobertura Coverage)
 #   2. Build & Publish Azure Pipeline Artifact (Universal/Build Drop)
 #   3. Docker Container Build & Push to Docker Hub
-#   4. Continuous Deployment to AWS EC2
+#   4. Continuous Deployment to Target Server (Approval via Environment)
 # ==============================================================
 
 name: $(Date:yyyyMMdd)$(Rev:.r)
 
+# Automatically trigger ONLY on the main branch
 trigger:
   branches:
     include:
       - main
-      
+
 pr:
   branches:
     include:
       - main
 
 variables:
-  pythonVersion: '3.11'
-  vmImageName: 'ubuntu-latest'
   imageRepository: 'arshad200/smallapp'
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
+  
+  # Azure DevOps Service Connections
   dockerRegistryServiceConnection: 'MyContainerRegistryConnection' # Docker Hub Service Connection
-  awsSshServiceConnection: 'MyAwsEc2SshConnection'                 # AWS EC2 SSH Service Connection
+  awsSshServiceConnection: 'MyAwsEc2SshConnection'                 # Target Server SSH Service Connection
+
+# Runs jobs on your self-hosted Agent Pool:
+pool:
+  name: 'Default'
 
 stages:
 # --------------------------------------------------------------
@@ -37,14 +43,7 @@ stages:
   jobs:
   - job: RunTests
     displayName: 'Execute PyTest & Verify Quality'
-    pool:
-      vmImage: $(vmImageName)
     steps:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '$(pythonVersion)'
-      displayName: 'Set up Python $(pythonVersion)'
-
     # Run automated test script inside the pipeline folder
     - script: bash pipeline/run-tests.sh
       displayName: 'Run Pytest with JUnit & Coverage Instrumentation'
@@ -61,56 +60,50 @@ stages:
     # Publish Code Coverage to Azure DevOps Dashboard
     - task: PublishCodeCoverageResults@2
       inputs:
-        summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
         pathToSources: '$(System.DefaultWorkingDirectory)/app'
+        failIfCoverageEmpty: false
       displayName: 'Publish Code Coverage Results to Azure DevOps'
 
 # --------------------------------------------------------------
-# STAGE 2: PACKAGE & PUBLISH AZURE ARTIFACT
+# STAGE 2: BUILD DROP ARTIFACT GENERATION & PUBLISHING
 # --------------------------------------------------------------
 - stage: Build_and_Publish_Artifact
-  displayName: '📦 Build & Publish Azure Artifact'
+  displayName: '📦 Build & Publish Artifact Drop'
   dependsOn: Test_and_Quality
+  condition: succeeded()
   jobs:
   - job: PackageArtifact
     displayName: 'Package Deployable Build Drop'
-    pool:
-      vmImage: $(vmImageName)
     steps:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '$(pythonVersion)'
-
     # Create zip bundle for deployment
     - task: ArchiveFiles@2
       inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+        rootFolderOrFile: '$(Build.SourcesDirectory)'
         includeRootFolder: false
         archiveType: 'zip'
         archiveFile: '$(Build.ArtifactStagingDirectory)/smallapp-$(Build.BuildId).zip'
         replaceExistingArchive: true
       displayName: 'Archive Application Bundle'
 
-    # Publish build artifact into Azure Pipelines Artifacts Drop
+    # Publish pipeline drop artifact
     - task: PublishPipelineArtifact@1
       inputs:
-        targetPath: '$(Build.ArtifactStagingDirectory)'
+        targetPath: '$(Build.ArtifactStagingDirectory)/smallapp-$(Build.BuildId).zip'
         artifact: 'drop'
         publishLocation: 'pipeline'
-      displayName: 'Publish Azure Pipeline Artifact (drop)'
+      displayName: 'Publish Pipeline Artifact Drop'
 
 # --------------------------------------------------------------
-# STAGE 3: DOCKER IMAGE BUILD & CONTAINER REGISTRY PUSH
+# STAGE 3: CONTAINERIZATION & DOCKER HUB REGISTRY PUSH
 # --------------------------------------------------------------
 - stage: Docker_Build_and_Push
-  displayName: '🐳 Build & Push Docker Image'
-  dependsOn: Test_and_Quality
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  displayName: '🐳 Docker Containerization & Hub Push'
+  dependsOn: Build_and_Publish_Artifact
+  condition: succeeded()
   jobs:
   - job: BuildDocker
     displayName: 'Docker Build & Push'
-    pool:
-      vmImage: $(vmImageName)
     steps:
     # 1. Build image using Docker@2 connected to Docker Hub
     - task: Docker@2
@@ -140,33 +133,33 @@ stages:
           latest
 
 # --------------------------------------------------------------
-# STAGE 4: CONTINUOUS DEPLOYMENT TO AWS EC2
+# STAGE 4: CONTINUOUS DEPLOYMENT TO TARGET SERVER VIA SSH
 # --------------------------------------------------------------
-- stage: Deploy_to_AWS_EC2
-  displayName: '🚀 Deploy to AWS EC2'
-  dependsOn:
-    - Build_and_Publish_Artifact
-    - Docker_Build_and_Push
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+- stage: Deploy_to_Target_Server
+  displayName: '🚀 Deploy to Target Server'
+  dependsOn: Docker_Build_and_Push
+  condition: succeeded()
   jobs:
-  - job: DeployEC2
-    displayName: 'Deploy Application to EC2'
-    pool:
-      vmImage: $(vmImageName)
-    steps:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        buildType: 'current'
-        artifactName: 'drop'
-        targetPath: '$(Pipeline.Workspace)/drop'
-      displayName: 'Download Azure Artifact Drop'
+  - deployment: DeployRemoteServer
+    displayName: 'Deploy Application to Server via SSH'
+    environment: 'Live'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: 'current'
+              artifactName: 'drop'
+              targetPath: '$(Pipeline.Workspace)/drop'
+            displayName: 'Download Azure Artifact Drop'
 
-    # Execute deployment script on AWS EC2 over SSH
-    - task: SSH@0
-      displayName: 'Execute deploy-ec2.sh on AWS EC2'
-      inputs:
-        sshEndpoint: $(awsSshServiceConnection)
-        runOptions: 'script'
-        scriptPath: 'pipeline/deploy-ec2.sh'
-        args: '$(imageRepository):latest 5000 true true'
-        failOnStdErr: false
+          # Execute deployment script on the remote target server over SSH
+          - task: SSH@0
+            displayName: 'Execute deploy-ec2.sh on Target Server via SSH'
+            inputs:
+              sshEndpoint: $(awsSshServiceConnection)
+              runOptions: 'script'
+              scriptPath: 'pipeline/deploy-ec2.sh'
+              args: '$(imageRepository):latest 5000 true true'
+              failOnStdErr: false
