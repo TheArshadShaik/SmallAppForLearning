@@ -26,10 +26,11 @@ variables:
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
   
-  # Azure DevOps Service Connection for Docker Hub
-  dockerRegistryServiceConnection: 'MyContainerRegistryConnection'
+  # Azure DevOps Service Connections
+  dockerRegistryServiceConnection: 'MyContainerRegistryConnection' # Docker Hub Service Connection
+  awsSshServiceConnection: 'MyAwsEc2SshConnection'                 # Target Server SSH Service Connection
 
-# Runs ALL jobs on your self-hosted AWS EC2 Agent:
+# Runs jobs on your self-hosted Agent Pool:
 pool:
   name: 'Default'
 
@@ -130,17 +131,17 @@ stages:
           latest
 
 # --------------------------------------------------------------
-# STAGE 4: CONTINUOUS DEPLOYMENT TO AWS EC2 (DIRECT LOCAL EXECUTION)
+# STAGE 4: CONTINUOUS DEPLOYMENT TO TARGET SERVER VIA SSH
 # --------------------------------------------------------------
-- stage: Deploy_to_AWS_EC2
-  displayName: '🚀 Deploy to AWS EC2'
+- stage: Deploy_to_Target_Server
+  displayName: '🚀 Deploy to Target Server'
   dependsOn:
     - Build_and_Publish_Artifact
     - Docker_Build_and_Push
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   jobs:
-  - job: DeployEC2
-    displayName: 'Deploy Application Locally on EC2'
+  - job: DeployRemoteServer
+    displayName: 'Deploy Application to Server via SSH'
     steps:
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -149,6 +150,12 @@ stages:
         targetPath: '$(Pipeline.Workspace)/drop'
       displayName: 'Download Azure Artifact Drop'
 
-    # Executes directly on the EC2 host (No SSH required!)
-    - script: bash pipeline/deploy-ec2.sh $(imageRepository):latest 5000 true true
-      displayName: 'Execute deploy-ec2.sh directly on EC2 host'
+    # Execute deployment script on the remote target server over SSH
+    - task: SSH@0
+      displayName: 'Execute deploy-ec2.sh on Target Server via SSH'
+      inputs:
+        sshEndpoint: $(awsSshServiceConnection)
+        runOptions: 'script'
+        scriptPath: 'pipeline/deploy-ec2.sh'
+        args: '$(imageRepository):latest 5000 true true'
+        failOnStdErr: false
