@@ -1,10 +1,11 @@
 # ==============================================================
 # Azure DevOps CI/CD Pipeline for SmallApp
+# Runner: Self-Hosted AWS EC2 Agent (Default Pool)
 # Stages:
 #   1. Test & Code Quality (pytest, JUnit XML, Cobertura Coverage)
 #   2. Build & Publish Azure Pipeline Artifact (Universal/Build Drop)
 #   3. Docker Container Build & Push to Docker Hub
-#   4. Continuous Deployment to AWS EC2
+#   4. Continuous Deployment to AWS EC2 (Direct Local Execution)
 # ==============================================================
 
 name: $(Date:yyyyMMdd)$(Rev:.r)
@@ -13,20 +14,25 @@ trigger:
   branches:
     include:
       - main
-      
+      - feature/*
+
 pr:
   branches:
     include:
       - main
 
 variables:
-  pythonVersion: '3.11'
-  vmImageName: 'ubuntu-latest'
   imageRepository: 'arshad200/smallapp'
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
+  
+  # Azure DevOps Service Connections
   dockerRegistryServiceConnection: 'MyContainerRegistryConnection' # Docker Hub Service Connection
-  awsSshServiceConnection: 'MyAwsEc2SshConnection'                 # AWS EC2 SSH Service Connection
+  awsSshServiceConnection: 'MyAwsEc2SshConnection'                 # Target Server SSH Service Connection
+
+# Runs jobs on your self-hosted Agent Pool:
+pool:
+  name: 'Default'
 
 stages:
 # --------------------------------------------------------------
@@ -37,14 +43,7 @@ stages:
   jobs:
   - job: RunTests
     displayName: 'Execute PyTest & Verify Quality'
-    pool:
-      vmImage: $(vmImageName)
     steps:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '$(pythonVersion)'
-      displayName: 'Set up Python $(pythonVersion)'
-
     # Run automated test script inside the pipeline folder
     - script: bash pipeline/run-tests.sh
       displayName: 'Run Pytest with JUnit & Coverage Instrumentation'
@@ -74,13 +73,7 @@ stages:
   jobs:
   - job: PackageArtifact
     displayName: 'Package Deployable Build Drop'
-    pool:
-      vmImage: $(vmImageName)
     steps:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '$(pythonVersion)'
-
     # Create zip bundle for deployment
     - task: ArchiveFiles@2
       inputs:
@@ -109,8 +102,6 @@ stages:
   jobs:
   - job: BuildDocker
     displayName: 'Docker Build & Push'
-    pool:
-      vmImage: $(vmImageName)
     steps:
     # 1. Build image using Docker@2 connected to Docker Hub
     - task: Docker@2
@@ -140,19 +131,17 @@ stages:
           latest
 
 # --------------------------------------------------------------
-# STAGE 4: CONTINUOUS DEPLOYMENT TO AWS EC2
+# STAGE 4: CONTINUOUS DEPLOYMENT TO TARGET SERVER VIA SSH
 # --------------------------------------------------------------
-- stage: Deploy_to_AWS_EC2
-  displayName: '🚀 Deploy to AWS EC2'
+- stage: Deploy_to_Target_Server
+  displayName: '🚀 Deploy to Target Server'
   dependsOn:
     - Build_and_Publish_Artifact
     - Docker_Build_and_Push
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   jobs:
-  - job: DeployEC2
-    displayName: 'Deploy Application to EC2'
-    pool:
-      vmImage: $(vmImageName)
+  - job: DeployRemoteServer
+    displayName: 'Deploy Application to Server via SSH'
     steps:
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -161,9 +150,9 @@ stages:
         targetPath: '$(Pipeline.Workspace)/drop'
       displayName: 'Download Azure Artifact Drop'
 
-    # Execute deployment script on AWS EC2 over SSH
+    # Execute deployment script on the remote target server over SSH
     - task: SSH@0
-      displayName: 'Execute deploy-ec2.sh on AWS EC2'
+      displayName: 'Execute deploy-ec2.sh on Target Server via SSH'
       inputs:
         sshEndpoint: $(awsSshServiceConnection)
         runOptions: 'script'
