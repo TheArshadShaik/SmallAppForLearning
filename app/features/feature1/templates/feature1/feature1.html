@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Feature 1 - Cloud Sizing & Cost Calculator{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="hero-badge">Isolated Microservice Feature</div>
+    <h1 class="hero-title">Feature 1: Capacity & Cost Estimator</h1>
+    <p class="hero-subtitle">
+        This is a modular single-page feature. It can run integrated within the primary server or independently on a standalone server via <code>python -m app.features.feature1.standalone</code>.
+    </p>
+</div>
+
+<div class="calculator-panel">
+    <div class="card-tag">Single Page Module</div>
+    <h3 style="margin-bottom: 1.5rem; font-size: 1.3rem;">⚡ Cloud EC2 Compute Cost Calculator</h3>
+
+    <form id="calc-form">
+        <div class="form-group">
+            <label for="instances">Number of EC2 Instances:</label>
+            <input type="number" id="instances" class="form-control" value="2" min="1" max="1000" required>
+        </div>
+
+        <div class="form-group">
+            <label for="hours">Operating Hours:</label>
+            <input type="number" id="hours" class="form-control" value="24" min="1" max="8760" required>
+        </div>
+
+        <div class="form-group">
+            <label for="rate">Hourly Rate ($ / instance hour):</label>
+            <input type="number" step="0.001" id="rate" class="form-control" value="0.0464" required>
+            <small style="color: var(--text-muted); display: block; margin-top: 0.3rem;">Example: AWS t3.medium on-demand rate ~ $0.0464/hr</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Calculate Estimation</button>
+    </form>
+
+    <div id="result-container" class="result-box" style="display: none;">
+        <h4 style="color: #cbd5e1; margin-bottom: 0.8rem;">Calculation Result:</h4>
+        <pre id="result-json"></pre>
+    </div>
+</div>
+
+<div style="max-width: 750px; margin: 2rem auto; text-align: center;">
+    <a href="/" class="btn" style="background: rgba(255,255,255,0.08); color: var(--text-muted);">&larr; Return to Home Gateway</a>
+</div>
+
+<script>
+document.getElementById('calc-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const instances = parseInt(document.getElementById('instances').value, 10);
+    const hours = parseInt(document.getElementById('hours').value, 10);
+    const rate = parseFloat(document.getElementById('rate').value);
+
+    const resultBox = document.getElementById('result-container');
+    const resultJson = document.getElementById('result-json');
+
+    try {
+        const response = await fetch('/feature1/api/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ instances, hours, rate })
+        });
+
+        const data = await response.json();
+        resultBox.style.display = 'block';
+        if (response.ok) {
+            resultJson.textContent = JSON.stringify(data.calculation, null, 2);
+            resultBox.style.borderColor = 'var(--accent-green)';
+            resultBox.style.color = 'var(--accent-green)';
+        } else {
+            resultJson.textContent = JSON.stringify(data, null, 2);
+            resultBox.style.borderColor = '#ef4444';
+            resultBox.style.color = '#ef4444';
+        }
+    } catch (err) {
+        resultBox.style.display = 'block';
+        resultJson.textContent = 'Error connecting to Feature 1 calculation API: ' + err.message;
+        resultBox.style.borderColor = '#ef4444';
+        resultBox.style.color = '#ef4444';
+    }
+});
+</script>
+{% endblock %}
