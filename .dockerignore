@@ -13,7 +13,7 @@ test-results/
 .gitignore
 .vscode
 .idea
-deploy/
+pipeline/
 TEST_PLAN.md
 DEVOPS_GUIDE.md
 README.md

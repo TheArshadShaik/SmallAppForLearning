@@ -40,11 +40,11 @@ SmallApp/
 │   │       └── templates/
 │   ├── static/                    # Responsive CSS & styling
 │   └── templates/                 # Base layout, Home, 404 & 500 error pages
-├── deploy/
-│   ├── ec2-userdata.sh            # Automated EC2 user-data provisioning script
-│   ├── deploy-ec2.sh              # CI/CD deployment script for EC2
-│   ├── smallapp.service           # systemd unit configuration
-│   └── nginx.conf                 # Nginx reverse proxy configuration
+├── pipeline/
+│   ├── pipeline.yml               # Multi-stage CI/CD pipeline
+│   ├── run-tests.sh               # Automated test script
+│   ├── smoke-test.sh              # Container smoke test script
+│   └── deploy-ec2.sh              # AWS EC2 deployment script
 ├── tests/
 │   ├── test_home.py               # Home page & health tests
 │   ├── test_feature1.py           # Feature 1 calculation & standalone tests
