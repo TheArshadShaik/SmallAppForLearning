@@ -135,7 +135,7 @@ If you want to publish to an Azure Artifacts Feed:
    * Allow **Custom TCP (Port 5001)** (Feature 1 Standalone).
    * Allow **Custom TCP (Port 5002)** (Feature 2 Standalone).
 7. **Advanced Details > User Data**:
-   * Paste the contents of `deploy/ec2-userdata.sh`.
+   * Ensure Docker is installed on your EC2 instance (`sudo apt update && sudo apt install -y docker.io`).
    * Click **Launch Instance**.
 
 ### Step 2: Configure Azure DevOps SSH Service Connection
@@ -152,7 +152,7 @@ If you want to publish to an Azure Artifacts Feed:
 When code is merged to `main`:
 1. Azure DevOps runs tests & generates code coverage.
 2. Builds the deployable artifact zip & pushes Docker image.
-3. The `Deploy_to_AWS_EC2` stage invokes `deploy/deploy-ec2.sh` on your EC2 instance over SSH, replacing the old container with the new version with zero downtime.
+3. The `Deploy_to_AWS_EC2` stage invokes `pipeline/deploy-ec2.sh` on your EC2 instance over SSH, replacing the old container with the new version with zero downtime.
 
 ---
 
