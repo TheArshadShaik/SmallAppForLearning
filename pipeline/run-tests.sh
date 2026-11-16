@@ -4,8 +4,18 @@
 # ==============================================================
 set -euo pipefail
 
-echo "==> Setting up Python test environment..."
-python -m pip install --upgrade pip
+echo "==> Setting up Python virtual environment..."
+PYTHON_CMD="python3"
+if ! command -v python3 &>/dev/null; then
+    PYTHON_CMD="python"
+fi
+
+# Create and activate virtual environment to prevent package conflicts
+$PYTHON_CMD -m venv .venv
+source .venv/bin/activate
+
+echo "==> Installing dependencies..."
+pip install --upgrade pip
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
@@ -20,4 +30,3 @@ pytest \
   tests/
 
 echo "==> All automated tests executed successfully!"
-
