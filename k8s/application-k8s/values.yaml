@@ -43,9 +43,10 @@ strategy:
     maxUnavailable: 0
 
 service:
-  type: ClusterIP
+  type: NodePort
   port: 80
   targetPort: 5000
+  nodePort: 30080
 
 ingress:
   enabled: true

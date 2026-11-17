@@ -33,6 +33,12 @@ ingress:
         - path: /
           pathType: Prefix
 
+service:
+  type: NodePort
+  port: 80
+  targetPort: 5000
+  nodePort: 30080
+
 env:
   FLASK_ENV: "production"
   LOG_LEVEL: "INFO"
