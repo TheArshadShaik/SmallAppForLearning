@@ -1,0 +1,174 @@
+name: SmallApp CI/CD Pipeline
+
+# ==============================================================
+# GitHub Actions CI/CD Pipeline for SmallApp
+# Runner: GitHub-Hosted Runners (ubuntu-latest - No Self-Hosted Runner needed!)
+# Jobs:
+#   1. test: Run PyTest test suite, generate JUnit XML & Coverage report
+#   2. package: Bundle deployable application drop artifact
+#   3. docker: Build Docker image, smoke-test health endpoint, push to Docker Hub
+#   4. deploy: Deploy to AWS EC2 over SSH (with manual approval via environment)
+# ==============================================================
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger from GitHub UI anytime
+
+env:
+  IMAGE_NAME: arshad200/smallapp
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # --------------------------------------------------------------
+  # JOB 1: AUTOMATED TESTING & CODE QUALITY
+  # --------------------------------------------------------------
+  test:
+    name: 🧪 Automated Testing & Code Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run PyTest with Coverage Instrumentation
+        run: |
+          mkdir -p test-results
+          pytest \
+            --junitxml=test-results/junit-test-results.xml \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            tests/
+
+      - name: Upload Test Results Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: htmlcov-report
+          path: htmlcov/
+          retention-days: 7
+
+  # --------------------------------------------------------------
+  # JOB 2: PACKAGE BUILD DROP ARTIFACT
+  # --------------------------------------------------------------
+  package:
+    name: 📦 Package Deployable Artifact Drop
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Deployable Application Zip
+        run: |
+          zip -r smallapp-${{ github.run_number }}.zip . \
+            -x ".git/*" ".venv/*" "__pycache__/*" "*.pyc" ".pytest_cache/*" "test-results/*" "htmlcov/*"
+
+      - name: Upload Application Drop Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: drop
+          path: smallapp-${{ github.run_number }}.zip
+          retention-days: 14
+
+  # --------------------------------------------------------------
+  # JOB 3: DOCKER BUILD, SMOKE TEST & PUSH TO DOCKER HUB
+  # --------------------------------------------------------------
+  docker:
+    name: 🐳 Docker Build, Test & Push
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker Image Locally
+        run: |
+          docker build \
+            -t ${{ env.IMAGE_NAME }}:${{ github.run_number }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
+            -f Dockerfile .
+
+      - name: Smoke Test Container Healthcheck Endpoint
+        run: |
+          bash pipeline/smoke-test.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}
+
+      - name: Push Docker Images to Docker Hub
+        # Only push to registry on push to main or manual dispatch
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+  # --------------------------------------------------------------
+  # JOB 4: CONTINUOUS DEPLOYMENT TO TARGET SERVER VIA SSH
+  # --------------------------------------------------------------
+  deploy:
+    name: 🚀 Deploy to Production Server via SSH
+    needs: [package, docker]
+    # Runs only on main branch pushes or manual triggers
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    
+    # Environment allows setting up manual approval in GitHub:
+    # Settings -> Environments -> production -> Required reviewers
+    environment: production
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Copy Deployment Script to Remote Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: 'pipeline/deploy-ec2.sh'
+          target: '/opt/smallapp/'
+
+      - name: Execute Deployment Script on Target Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            chmod +x /opt/smallapp/pipeline/deploy-ec2.sh
+            /opt/smallapp/pipeline/deploy-ec2.sh ${{ env.IMAGE_NAME }}:latest 5000 true true
