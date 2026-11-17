@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smallapp-rolling-update
+  namespace: smallapp
+  labels:
+    app: smallapp
+    strategy: rolling-update
+spec:
+  replicas: 4
+  revisionHistoryLimit: 10
+  # -----------------------------------------------------------------
+  # 0% Downtime Rolling Update Equation:
+  # Available Pods >= 4 throughout entire deployment.
+  # maxUnavailable: 0 ensures no pod is removed before replacement is ready.
+  # maxSurge: 1 (or 25%) spins up new pod, waits for readiness check.
+  # -----------------------------------------------------------------
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: smallapp
+  template:
+    metadata:
+      labels:
+        app: smallapp
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: web
+          image: arshad200/smallapp:1.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: smallapp-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          # -----------------------------------------------------------
+          # Startup probe gives slow app warm-ups time without killing
+          # -----------------------------------------------------------
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 2
+            periodSeconds: 3
+            failureThreshold: 10
+          # -----------------------------------------------------------
+          # Readiness probe ensures traffic ONLY routes when 200 OK
+          # -----------------------------------------------------------
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+          # -----------------------------------------------------------
+          # Liveness probe restarts deadlocked containers
+          # -----------------------------------------------------------
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # -----------------------------------------------------------
+          # Lifecycle preStop hook:
+          # Drains existing connections before SIGTERM is sent to Gunicorn
+          # -----------------------------------------------------------
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]

@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: smallapp-production
+  namespace: argocd
+  labels:
+    environment: production
+    app.kubernetes.io/name: smallapp
+spec:
+  project: smallapp-project
+  source:
+    repoURL: "https://github.com/TheArshadShaik/SmallAppForLearning.git"
+    targetRevision: main
+    path: k8s/application-k8s
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: smallapp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

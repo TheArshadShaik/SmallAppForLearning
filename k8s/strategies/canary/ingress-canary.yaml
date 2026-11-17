@@ -1,0 +1,30 @@
+# ==============================================================
+# Native NGINX Ingress Canary Routing (Without Argo Rollouts)
+# Routes 10% of production traffic to Canary, or 100% of header
+# ==============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: smallapp-canary-ingress
+  namespace: smallapp
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # Enables canary functionality
+    nginx.ingress.kubernetes.io/canary: "true"
+    # Route 10% of randomized user traffic to Canary
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+    # Optional: Route users with specific header to Canary for testing
+    nginx.ingress.kubernetes.io/canary-by-header: "X-Canary-Test"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "always"
+spec:
+  rules:
+    - host: smallapp.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: smallapp-canary-service
+                port:
+                  number: 80

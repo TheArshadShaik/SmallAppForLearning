@@ -1,0 +1,30 @@
+# Environment values for Development
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+ingress:
+  hosts:
+    - host: smallapp.dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+env:
+  FLASK_ENV: "development"
+  LOG_LEVEL: "DEBUG"
+  ENABLE_FEATURE_1: "true"
+  ENABLE_FEATURE_2: "true"
+  APP_TITLE: "SmallApp Development Cluster"

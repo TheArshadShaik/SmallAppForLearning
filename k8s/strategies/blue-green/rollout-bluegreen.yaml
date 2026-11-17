@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: smallapp-bluegreen-rollout
+  namespace: smallapp
+  labels:
+    app: smallapp
+    strategy: blue-green
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: smallapp
+  strategy:
+    blueGreen:
+      # Active service routes production traffic
+      activeService: smallapp-production-service
+      # Preview service routes QA/test traffic to green pods before promotion
+      previewService: smallapp-preview-service
+      # Set to false to require manual approval before switching live traffic
+      autoPromotionEnabled: false
+      # Scale down old blue pods after 60 seconds post-promotion
+      scaleDownDelaySeconds: 60
+      # Anti-affinity ensures blue and green pods are spread across nodes
+      antiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          weight: 100
+  template:
+    metadata:
+      labels:
+        app: smallapp
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: web
+          image: arshad200/smallapp:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: smallapp-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            periodSeconds: 10
+            failureThreshold: 3

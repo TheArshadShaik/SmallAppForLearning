@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: smallapp-project
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: smallapp
+spec:
+  description: "SmallApp Production & Development GitOps Project"
+  # Allowed source Git repositories
+  sourceRepos:
+    - "https://github.com/TheArshadShaik/SmallAppForLearning.git"
+    - "https://github.com/TheArshadShaik/*"
+  # Permitted destination clusters and namespaces
+  destinations:
+    - namespace: "smallapp"
+      server: "https://kubernetes.default.svc"
+    - namespace: "smallapp-dev"
+      server: "https://kubernetes.default.svc"
+  # Whitelist of cluster resources allowed
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  # Whitelist of namespace-scoped resources
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  # Orphaned resource monitoring
+  orphanedResources:
+    warn: true

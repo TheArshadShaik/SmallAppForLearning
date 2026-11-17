@@ -1,0 +1,14 @@
+apiVersion: v2
+name: smallapp
+description: Production-grade Helm chart for SmallApp Modular Python Web Server
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - python
+  - flask
+  - microservices
+  - modular
+maintainers:
+  - name: DevOps Engineering Team
+    email: devops@smallapp.local

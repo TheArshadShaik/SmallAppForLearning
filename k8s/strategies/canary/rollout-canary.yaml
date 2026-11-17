@@ -1,0 +1,77 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: smallapp-canary-rollout
+  namespace: smallapp
+  labels:
+    app: smallapp
+    strategy: canary
+spec:
+  replicas: 10
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: smallapp
+  strategy:
+    canary:
+      # Stable and Canary Services for traffic shaping
+      canaryService: smallapp-canary-service
+      stableService: smallapp-stable-service
+      trafficRouting:
+        nginx:
+          stableIngress: smallapp-ingress
+      # -------------------------------------------------------------
+      # Progressive Canary Promotion Steps:
+      # Step 1: 10% traffic to canary -> pause 5m for metrics
+      # Step 2: 25% traffic -> pause 10m
+      # Step 3: 50% traffic -> manual approval gate
+      # Step 4: 100% full promotion
+      # -------------------------------------------------------------
+      steps:
+        - setWeight: 10
+        - pause: { duration: 5m }
+        - setWeight: 25
+        - pause: { duration: 10m }
+        - setWeight: 50
+        - pause: {} # Pauses indefinitely until manual approval
+        - setWeight: 100
+      # Automated Rollback on error threshold breach
+      analysis:
+        templates:
+          - templateName: success-rate-analysis
+        args:
+          - name: service-name
+            value: smallapp-canary-service
+  template:
+    metadata:
+      labels:
+        app: smallapp
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: web
+          image: arshad200/smallapp:1.0.1
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: smallapp-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            periodSeconds: 10
+            failureThreshold: 3
